@@ -1,18 +1,28 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { createWorld, spawnPlayer } from '@shared/world.ts'
-import type { PlayerInput, ServerSnapshotMessage } from '@shared/types.ts'
+import type {
+  PlayerInput,
+  ServerShotMessage,
+  ServerSnapshotMessage,
+} from '@shared/types.ts'
 import { serializeWorld } from '@shared/snapshot.ts'
 
 import { createLagSim } from './lagSim.ts'
-import type { Network, NetworkSendInputOptions } from './network.ts'
+import type {
+  Network,
+  NetworkSendInputOptions,
+  NetworkSendShootOptions,
+} from './network.ts'
 
 interface MockNetwork {
   closeCalled: boolean
   emitDisconnect: () => void
+  emitShot: (message: ServerShotMessage) => void
   emitSnapshot: (message: ServerSnapshotMessage) => void
   network: Network
   sentInputs: Array<NetworkSendInputOptions>
+  sentShots: Array<NetworkSendShootOptions>
 }
 
 function makeInput(
@@ -44,10 +54,21 @@ function makeSnapshotMessage(): ServerSnapshotMessage {
   }
 }
 
+function makeShotMessage(): ServerShotMessage {
+  return {
+    type: 'shot',
+    shooterId: 1,
+    shotSeq: 7,
+    targetId: 2,
+  }
+}
+
 function createMockNetwork(): MockNetwork {
   const disconnectListeners: Array<() => void> = []
+  const shotListeners: Array<(message: ServerShotMessage) => void> = []
   const snapshotListeners: Array<(message: ServerSnapshotMessage) => void> = []
   const sentInputs: Array<NetworkSendInputOptions> = []
+  const sentShots: Array<NetworkSendShootOptions> = []
   let wasCloseCalled = false
 
   return {
@@ -58,6 +79,11 @@ function createMockNetwork(): MockNetwork {
     },
     emitSnapshot(message) {
       for (const listener of snapshotListeners) {
+        listener(message)
+      }
+    },
+    emitShot(message) {
+      for (const listener of shotListeners) {
         listener(message)
       }
     },
@@ -75,6 +101,16 @@ function createMockNetwork(): MockNetwork {
           }
         }
       },
+      onShot(listener) {
+        shotListeners.push(listener)
+
+        return () => {
+          const index = shotListeners.indexOf(listener)
+          if (index >= 0) {
+            shotListeners.splice(index, 1)
+          }
+        }
+      },
       onSnapshot(listener) {
         snapshotListeners.push(listener)
 
@@ -88,8 +124,12 @@ function createMockNetwork(): MockNetwork {
       sendInput(options) {
         sentInputs.push(options)
       },
+      sendShoot(options) {
+        sentShots.push(options)
+      },
     },
     sentInputs,
+    sentShots,
     get closeCalled() {
       return wasCloseCalled
     },
@@ -142,6 +182,45 @@ describe('lag sim', () => {
     vi.advanceTimersByTime(80)
 
     expect(receivedSnapshots).toEqual([snapshot])
+    lagSim.close()
+  })
+
+  test('delays outgoing shoot events and incoming shot events', () => {
+    vi.useFakeTimers()
+    const mockNetwork = createMockNetwork()
+    const lagSim = createLagSim({
+      config: { latencyMs: 80, dropRate: 0 },
+      network: mockNetwork.network,
+      random: () => 0.99,
+    })
+    const receivedShotEvents: Array<ServerShotMessage> = []
+
+    lagSim.onShot((message) => {
+      receivedShotEvents.push(message)
+    })
+
+    lagSim.sendShoot({
+      aimX: 320,
+      aimY: 200,
+      seq: 4,
+      tick: 19,
+    })
+    mockNetwork.emitShot(makeShotMessage())
+
+    expect(mockNetwork.sentShots).toEqual([])
+    expect(receivedShotEvents).toEqual([])
+
+    vi.advanceTimersByTime(80)
+
+    expect(mockNetwork.sentShots).toEqual([
+      {
+        aimX: 320,
+        aimY: 200,
+        seq: 4,
+        tick: 19,
+      },
+    ])
+    expect(receivedShotEvents).toEqual([makeShotMessage()])
     lagSim.close()
   })
 

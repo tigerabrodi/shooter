@@ -1,14 +1,24 @@
 import { describe, expect, test } from 'vitest'
 
-import { DT, PLAYER_SPEED } from '@shared/constants.ts'
+import {
+  BULLET_DAMAGE,
+  DT,
+  FIRE_COOLDOWN_TICKS,
+  INTERPOLATION_DELAY_TICKS,
+  MAX_REWIND_TICKS,
+  PLAYER_SPEED,
+} from '@shared/constants.ts'
 import { deserializeWorld, serializeWorld } from '@shared/snapshot.ts'
 import type { PlayerInput } from '@shared/types.ts'
+import { createWorld, spawnPlayer, spawnWall } from '@shared/world.ts'
 
 import {
   connectClient,
   createServerState,
   disconnectClient,
   enqueueClientInput,
+  MAX_FUTURE_INPUT_TICKS,
+  processClientShoot,
   tickServer,
 } from './server.ts'
 
@@ -43,16 +53,11 @@ describe('server state', () => {
     expect(state.world.tick).toBe(1)
   })
 
-  test('server applies queued inputs in sequence order per client', () => {
+  test('server applies due inputs in tick order per client', () => {
     const state = createServerState({})
     const firstClient = connectClient({ state, clientId: 'client-1' })
     const secondClient = connectClient({ state, clientId: 'client-2' })
 
-    enqueueClientInput({
-      state,
-      clientId: firstClient.clientId,
-      input: makeQueuedInput(firstClient.playerId, 3, 2, { left: true }),
-    })
     enqueueClientInput({
       state,
       clientId: firstClient.clientId,
@@ -62,6 +67,11 @@ describe('server state', () => {
       state,
       clientId: firstClient.clientId,
       input: makeQueuedInput(firstClient.playerId, 2, 1, { up: true }),
+    })
+    enqueueClientInput({
+      state,
+      clientId: firstClient.clientId,
+      input: makeQueuedInput(firstClient.playerId, 3, 2, { left: true }),
     })
     enqueueClientInput({
       state,
@@ -165,5 +175,320 @@ describe('server state', () => {
 
     expect(state.world.players[client.playerId]).toBeUndefined()
     expect(state.clients[client.clientId]).toBeUndefined()
+  })
+
+  test('server ignores stale duplicate inputs and keeps ack monotonic', () => {
+    const state = createServerState({})
+    const client = connectClient({ state, clientId: 'client-1' })
+    const startX = state.world.positions[client.playerId].x
+
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(client.playerId, 1, 0, { right: true }),
+    })
+
+    tickServer({ state })
+
+    expect(state.clients[client.clientId]?.lastAckedSeq).toBe(1)
+    expect(state.world.positions[client.playerId].x).toBeCloseTo(
+      startX + PLAYER_SPEED * DT
+    )
+
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(client.playerId, 1, 1, { left: true }),
+    })
+
+    tickServer({ state })
+
+    expect(state.clients[client.clientId]?.lastAckedSeq).toBe(1)
+    expect(state.world.positions[client.playerId].x).toBeCloseTo(
+      startX + PLAYER_SPEED * DT * 2
+    )
+  })
+
+  test('server ignores duplicate sequence numbers before they are acked', () => {
+    const state = createServerState({})
+    const client = connectClient({ state, clientId: 'client-1' })
+
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(client.playerId, 1, 0, { right: true }),
+    })
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(client.playerId, 1, 0, { left: true }),
+    })
+
+    expect(state.clients[client.clientId]?.inputQueue).toHaveLength(1)
+  })
+
+  test('server ignores inputs that are too far in the future', () => {
+    const state = createServerState({})
+    const client = connectClient({ state, clientId: 'client-1' })
+    const startX = state.world.positions[client.playerId].x
+
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(
+        client.playerId,
+        1,
+        state.world.tick + MAX_FUTURE_INPUT_TICKS + 1,
+        { right: true }
+      ),
+    })
+
+    tickServer({ state })
+
+    expect(state.clients[client.clientId]?.lastAckedSeq).toBe(0)
+    expect(state.clients[client.clientId]?.inputQueue).toEqual([])
+    expect(state.world.positions[client.playerId].x).toBeCloseTo(startX)
+  })
+
+  test('server preserves a short fire pulse when due inputs collapse into one tick', () => {
+    const world = createWorld({})
+    const state = createServerState({ world })
+    const client = connectClient({ state, clientId: 'client-1' })
+    const playerPosition = state.world.positions[client.playerId]
+
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(client.playerId, 1, 0, {
+        fire: true,
+        aimX: playerPosition.x + 100,
+        aimY: playerPosition.y,
+      }),
+    })
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(client.playerId, 2, 0, {
+        fire: false,
+        aimX: playerPosition.x + 100,
+        aimY: playerPosition.y,
+      }),
+    })
+
+    tickServer({ state })
+
+    expect(Object.keys(state.world.bullets)).toHaveLength(1)
+    expect(state.clients[client.clientId]?.lastAckedSeq).toBe(2)
+  })
+
+  test('server applies shot damage using rewound positions and not current positions', () => {
+    const world = createWorld({})
+    const state = createServerState({ world })
+    const client = connectClient({ state, clientId: 'client-1' })
+    const shooterId = client.playerId
+    const targetId = spawnPlayer(state.world, {
+      x: 220,
+      y: 220,
+      color: '#ffffff',
+    })
+
+    state.world.positions[shooterId] = { x: 100, y: 100 }
+    state.world.positions[targetId] = { x: 220, y: 220 }
+    state.world.tick = 20
+
+    const rewoundWorld = deserializeWorld({
+      snapshot: serializeWorld({ world: state.world }),
+    })
+    rewoundWorld.tick = state.world.tick - INTERPOLATION_DELAY_TICKS
+    rewoundWorld.positions[targetId] = { x: 220, y: 100 }
+    state.history = [serializeWorld({ world: rewoundWorld })]
+
+    const result = processClientShoot({
+      state,
+      clientId: client.clientId,
+      shot: {
+        aimX: 320,
+        aimY: 100,
+        playerId: shooterId,
+        seq: 1,
+        tick: state.world.tick,
+      },
+    })
+
+    expect(result).toEqual({
+      shooterId,
+      shotSeq: 1,
+      targetId,
+    })
+    expect(state.world.health[targetId]).toBe(100 - BULLET_DAMAGE)
+    expect(state.world.players[shooterId]?.fireCooldownTicks).toBe(
+      FIRE_COOLDOWN_TICKS
+    )
+    expect(Object.keys(state.world.bullets)).toHaveLength(1)
+  })
+
+  test('server does not process duplicate shot sequence numbers twice', () => {
+    const world = createWorld({})
+    const state = createServerState({ world })
+    const client = connectClient({ state, clientId: 'client-1' })
+    const shooterId = client.playerId
+    const targetId = spawnPlayer(state.world, {
+      x: 220,
+      y: 100,
+      color: '#ffffff',
+    })
+
+    state.world.positions[shooterId] = { x: 100, y: 100 }
+    state.world.tick = 20
+
+    const firstResult = processClientShoot({
+      state,
+      clientId: client.clientId,
+      shot: {
+        aimX: 320,
+        aimY: 100,
+        playerId: shooterId,
+        seq: 1,
+        tick: state.world.tick,
+      },
+    })
+    const healthAfterFirstShot = state.world.health[targetId]
+    const secondResult = processClientShoot({
+      state,
+      clientId: client.clientId,
+      shot: {
+        aimX: 320,
+        aimY: 100,
+        playerId: shooterId,
+        seq: 1,
+        tick: state.world.tick,
+      },
+    })
+
+    expect(firstResult?.targetId).toBe(targetId)
+    expect(secondResult).toBeNull()
+    expect(state.world.health[targetId]).toBe(healthAfterFirstShot)
+  })
+
+  test('server burns rejected shot sequence numbers so duplicates cannot succeed later', () => {
+    const world = createWorld({})
+    const state = createServerState({ world })
+    const client = connectClient({ state, clientId: 'client-1' })
+    const shooterId = client.playerId
+    const targetId = spawnPlayer(state.world, {
+      x: 220,
+      y: 100,
+      color: '#ffffff',
+    })
+
+    state.world.positions[shooterId] = { x: 100, y: 100 }
+    state.world.tick = 20
+    state.world.players[shooterId].fireCooldownTicks = 3
+
+    const rejectedShot = processClientShoot({
+      state,
+      clientId: client.clientId,
+      shot: {
+        aimX: 320,
+        aimY: 100,
+        playerId: shooterId,
+        seq: 1,
+        tick: state.world.tick,
+      },
+    })
+
+    state.world.players[shooterId].fireCooldownTicks = 0
+
+    const duplicateShot = processClientShoot({
+      state,
+      clientId: client.clientId,
+      shot: {
+        aimX: 320,
+        aimY: 100,
+        playerId: shooterId,
+        seq: 1,
+        tick: state.world.tick,
+      },
+    })
+
+    expect(rejectedShot).toBeNull()
+    expect(duplicateShot).toBeNull()
+    expect(state.world.health[targetId]).toBe(100)
+  })
+
+  test('server ignores shots that are outside the max rewind window', () => {
+    const world = createWorld({})
+    const state = createServerState({ world })
+    const client = connectClient({ state, clientId: 'client-1' })
+    const shooterId = client.playerId
+    const targetId = spawnPlayer(state.world, {
+      x: 220,
+      y: 220,
+      color: '#ffffff',
+    })
+
+    state.world.positions[shooterId] = { x: 100, y: 100 }
+    state.world.positions[targetId] = { x: 220, y: 220 }
+    state.world.tick = 40
+
+    const oldWorld = deserializeWorld({
+      snapshot: serializeWorld({ world: state.world }),
+    })
+    oldWorld.tick = state.world.tick - MAX_REWIND_TICKS - 10
+    oldWorld.positions[targetId] = { x: 220, y: 100 }
+    state.history = [serializeWorld({ world: oldWorld })]
+
+    const result = processClientShoot({
+      state,
+      clientId: client.clientId,
+      shot: {
+        aimX: 320,
+        aimY: 100,
+        playerId: shooterId,
+        seq: 1,
+        tick: oldWorld.tick + INTERPOLATION_DELAY_TICKS,
+      },
+    })
+
+    expect(result?.targetId).toBeNull()
+    expect(state.world.health[targetId]).toBe(100)
+  })
+
+  test('server shot handling respects rewound wall cover', () => {
+    const world = createWorld({})
+    const state = createServerState({ world })
+    const client = connectClient({ state, clientId: 'client-1' })
+    const shooterId = client.playerId
+    const targetId = spawnPlayer(state.world, {
+      x: 260,
+      y: 100,
+      color: '#ffffff',
+    })
+
+    state.world.positions[shooterId] = { x: 100, y: 100 }
+    state.world.positions[targetId] = { x: 260, y: 100 }
+    spawnWall(state.world, {
+      x: 170,
+      y: 60,
+      width: 40,
+      height: 80,
+    })
+    state.world.tick = 20
+    state.history = [serializeWorld({ world: state.world })]
+
+    const result = processClientShoot({
+      state,
+      clientId: client.clientId,
+      shot: {
+        aimX: 320,
+        aimY: 100,
+        playerId: shooterId,
+        seq: 1,
+        tick: state.world.tick,
+      },
+    })
+
+    expect(result?.targetId).toBeNull()
+    expect(state.world.health[targetId]).toBe(100)
   })
 })

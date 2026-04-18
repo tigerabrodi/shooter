@@ -4,8 +4,10 @@ import type { ServerWebSocket } from 'bun'
 
 import {
   createClientId,
+  createShotMessage,
   createSnapshotMessage,
   parseClientInputMessage,
+  parseClientShootMessage,
   type SocketData,
 } from './connections.ts'
 import { pushSnapshotToHistory } from './history.ts'
@@ -14,6 +16,7 @@ import {
   createServerState,
   disconnectClient,
   enqueueClientInput,
+  processClientShoot,
   tickServer,
 } from './server.ts'
 
@@ -49,6 +52,28 @@ function broadcastSnapshot(snapshot: ReturnType<typeof serializeWorld>): void {
         })
       )
     )
+  }
+}
+
+function broadcastShotMessage({
+  shooterId,
+  shotSeq,
+  targetId,
+}: {
+  shooterId: number
+  shotSeq: number
+  targetId: number | null
+}): void {
+  const message = JSON.stringify(
+    createShotMessage({
+      shooterId,
+      shotSeq,
+      targetId,
+    })
+  )
+
+  for (const socket of sockets.values()) {
+    socket.send(message)
   }
 }
 
@@ -112,15 +137,35 @@ const server = Bun.serve({
         playerId: client.playerId,
       })
 
-      if (input === null) {
+      if (input !== null) {
+        enqueueClientInput({
+          state,
+          clientId: ws.data.clientId,
+          input,
+        })
         return
       }
 
-      enqueueClientInput({
+      const shot = parseClientShootMessage({
+        message: rawMessage,
+        playerId: client.playerId,
+      })
+
+      if (shot === null) {
+        return
+      }
+
+      const result = processClientShoot({
         state,
         clientId: ws.data.clientId,
-        input,
+        shot,
       })
+
+      if (result === null) {
+        return
+      }
+
+      broadcastShotMessage(result)
     },
     open(ws) {
       connectClient({

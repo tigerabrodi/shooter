@@ -72,6 +72,47 @@ function rayCircleHitDistance(
   return null
 }
 
+function rayRectHitDistance(
+  origin: Vector2,
+  direction: Vector2,
+  maxDistance: number,
+  left: number,
+  right: number,
+  top: number,
+  bottom: number
+): number | null {
+  let tMin = 0
+  let tMax = maxDistance
+
+  if (direction.x === 0) {
+    if (origin.x < left || origin.x > right) {
+      return null
+    }
+  } else {
+    const tx1 = (left - origin.x) / direction.x
+    const tx2 = (right - origin.x) / direction.x
+    tMin = Math.max(tMin, Math.min(tx1, tx2))
+    tMax = Math.min(tMax, Math.max(tx1, tx2))
+  }
+
+  if (direction.y === 0) {
+    if (origin.y < top || origin.y > bottom) {
+      return null
+    }
+  } else {
+    const ty1 = (top - origin.y) / direction.y
+    const ty2 = (bottom - origin.y) / direction.y
+    tMin = Math.max(tMin, Math.min(ty1, ty2))
+    tMax = Math.min(tMax, Math.max(ty1, ty2))
+  }
+
+  if (tMax < 0 || tMin > tMax || tMin > maxDistance) {
+    return null
+  }
+
+  return Math.max(0, tMin)
+}
+
 export function rewindToTick({
   history,
   targetTick,
@@ -138,6 +179,24 @@ export function checkShotInPast({
 
   let closestHitEntityId: EntityId | null = null
   let closestHitDistance = Number.POSITIVE_INFINITY
+
+  for (const wall of Object.values(snapshot.walls)) {
+    const wallHitDistance = rayRectHitDistance(
+      shooterPosition,
+      shotDirection,
+      maxDistance,
+      wall.x,
+      wall.x + wall.width,
+      wall.y,
+      wall.y + wall.height
+    )
+
+    if (wallHitDistance === null || wallHitDistance >= closestHitDistance) {
+      continue
+    }
+
+    closestHitDistance = wallHitDistance
+  }
 
   for (const [entityIdText, player] of Object.entries(snapshot.players)) {
     void player

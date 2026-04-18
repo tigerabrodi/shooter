@@ -1,6 +1,8 @@
 import type {
   ClientInputMessage,
+  ClientShootMessage,
   PlayerInput,
+  ServerShotMessage,
   ServerSnapshotMessage,
 } from '@shared/types.ts'
 
@@ -15,11 +17,20 @@ export interface NetworkSendInputOptions {
   tick: number
 }
 
+export interface NetworkSendShootOptions {
+  aimX: number
+  aimY: number
+  seq: number
+  tick: number
+}
+
 export interface Network {
   close: () => void
   onDisconnect: (listener: () => void) => () => void
+  onShot: (listener: (message: ServerShotMessage) => void) => () => void
   onSnapshot: (listener: (message: ServerSnapshotMessage) => void) => () => void
   sendInput: (options: NetworkSendInputOptions) => void
+  sendShoot: (options: NetworkSendShootOptions) => void
 }
 
 const DEFAULT_RECONNECT_DELAY_MS = 500
@@ -49,6 +60,31 @@ function parseSnapshotMessage(rawData: unknown): ServerSnapshotMessage | null {
   return parsedData as ServerSnapshotMessage
 }
 
+function parseShotMessage(rawData: unknown): ServerShotMessage | null {
+  if (typeof rawData !== 'string') {
+    return null
+  }
+
+  let parsedData: unknown
+
+  try {
+    parsedData = JSON.parse(rawData)
+  } catch {
+    return null
+  }
+
+  if (
+    typeof parsedData !== 'object' ||
+    parsedData === null ||
+    !('type' in parsedData) ||
+    parsedData.type !== 'shot'
+  ) {
+    return null
+  }
+
+  return parsedData as ServerShotMessage
+}
+
 function removeListener<T>(listeners: Array<T>, listener: T): void {
   const listenerIndex = listeners.indexOf(listener)
   if (listenerIndex === -1) {
@@ -64,6 +100,7 @@ export function createNetwork({
   webSocketFactory = (socketUrl) => new WebSocket(socketUrl),
 }: CreateNetworkOptions): Network {
   const disconnectListeners: Array<() => void> = []
+  const shotListeners: Array<(message: ServerShotMessage) => void> = []
   const snapshotListeners: Array<(message: ServerSnapshotMessage) => void> = []
 
   let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
@@ -94,12 +131,21 @@ export function createNetwork({
 
   function handleMessage(event: MessageEvent): void {
     const message = parseSnapshotMessage(event.data)
-    if (message === null) {
+    if (message !== null) {
+      for (const listener of snapshotListeners) {
+        listener(message)
+      }
+
       return
     }
 
-    for (const listener of snapshotListeners) {
-      listener(message)
+    const shotMessage = parseShotMessage(event.data)
+    if (shotMessage === null) {
+      return
+    }
+
+    for (const listener of shotListeners) {
+      listener(shotMessage)
     }
   }
 
@@ -140,6 +186,13 @@ export function createNetwork({
         removeListener(disconnectListeners, listener)
       }
     },
+    onShot(listener) {
+      shotListeners.push(listener)
+
+      return () => {
+        removeListener(shotListeners, listener)
+      }
+    },
     onSnapshot(listener) {
       snapshotListeners.push(listener)
 
@@ -163,6 +216,21 @@ export function createNetwork({
         fire: input.fire,
         aimX: input.aimX,
         aimY: input.aimY,
+      }
+
+      socket.send(JSON.stringify(message))
+    },
+    sendShoot({ aimX, aimY, seq, tick }) {
+      if (socket === null || socket.readyState !== WebSocket.OPEN) {
+        return
+      }
+
+      const message: ClientShootMessage = {
+        type: 'shoot',
+        seq,
+        tick,
+        aimX,
+        aimY,
       }
 
       socket.send(JSON.stringify(message))

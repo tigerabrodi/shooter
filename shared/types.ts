@@ -102,6 +102,7 @@ export interface SpawnBulletOptions {
   velocityX: number
   velocityY: number
   ownerId: EntityId
+  damage?: number
 }
 
 export interface CollisionResolution {
@@ -140,9 +141,24 @@ export interface ClientInputMessage {
   keys?: Partial<Record<'up' | 'down' | 'left' | 'right' | 'fire', boolean>>
 }
 
+export interface ClientShootMessage {
+  type: 'shoot'
+  seq: number
+  tick: number
+  aimX: number
+  aimY: number
+}
+
 export interface ServerSnapshotMessage {
   type: 'snapshot'
   ackedSeq: number
   playerId: EntityId
   snapshot: Snapshot
+}
+
+export interface ServerShotMessage {
+  type: 'shot'
+  shooterId: EntityId
+  shotSeq: number
+  targetId: EntityId | null
 }

@@ -1,5 +1,10 @@
 export const TICK_RATE = 60
 export const DT = 1 / TICK_RATE
+export const INTERPOLATION_DELAY_MS = 100
+export const INTERPOLATION_DELAY_TICKS = Math.round(
+  (TICK_RATE * INTERPOLATION_DELAY_MS) / 1000
+)
+export const MAX_REWIND_TICKS = 12
 
 export const MAP_WIDTH = 800
 export const MAP_HEIGHT = 600
@@ -12,6 +17,7 @@ export const BULLET_RADIUS = 4
 export const BULLET_SPEED = 480
 export const BULLET_DAMAGE = 25
 export const FIRE_COOLDOWN_TICKS = 10
+export const MAX_SHOT_DISTANCE = Math.hypot(MAP_WIDTH, MAP_HEIGHT)
 
 export const DEFAULT_RANDOM_SEED = 1337
 

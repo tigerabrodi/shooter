@@ -1,6 +1,10 @@
-import type { ServerSnapshotMessage } from '@shared/types.ts'
+import type { ServerShotMessage, ServerSnapshotMessage } from '@shared/types.ts'
 
-import type { Network, NetworkSendInputOptions } from './network.ts'
+import type {
+  Network,
+  NetworkSendInputOptions,
+  NetworkSendShootOptions,
+} from './network.ts'
 
 export interface LagSimConfig {
   latencyMs: number
@@ -32,6 +36,7 @@ export function createLagSim({
   random = Math.random,
 }: CreateLagSimOptions): Network {
   const disconnectListeners: Array<() => void> = []
+  const shotListeners: Array<(message: ServerShotMessage) => void> = []
   const snapshotListeners: Array<(message: ServerSnapshotMessage) => void> = []
   const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -68,6 +73,18 @@ export function createLagSim({
     })
   })
 
+  const unsubscribeShot = network.onShot((message) => {
+    if (shouldDropPacket()) {
+      return
+    }
+
+    schedule(() => {
+      for (const listener of shotListeners) {
+        listener(message)
+      }
+    })
+  })
+
   const unsubscribeDisconnect = network.onDisconnect(() => {
     for (const listener of disconnectListeners) {
       listener()
@@ -78,6 +95,7 @@ export function createLagSim({
     close() {
       clearPendingTimers()
       unsubscribeSnapshot()
+      unsubscribeShot()
       unsubscribeDisconnect()
       network.close()
     },
@@ -86,6 +104,13 @@ export function createLagSim({
 
       return () => {
         removeListener(disconnectListeners, listener)
+      }
+    },
+    onShot(listener) {
+      shotListeners.push(listener)
+
+      return () => {
+        removeListener(shotListeners, listener)
       }
     },
     onSnapshot(listener) {
@@ -102,6 +127,15 @@ export function createLagSim({
 
       schedule(() => {
         network.sendInput(options)
+      })
+    },
+    sendShoot(options: NetworkSendShootOptions) {
+      if (shouldDropPacket()) {
+        return
+      }
+
+      schedule(() => {
+        network.sendShoot(options)
       })
     },
   }

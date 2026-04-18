@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import { checkShotInPast, rewindToTick } from '@shared/lagcomp.ts'
 import { serializeWorld } from '@shared/snapshot.ts'
-import { createWorld, spawnPlayer } from '@shared/world.ts'
+import { createWorld, spawnPlayer, spawnWall } from '@shared/world.ts'
 
 describe('lag compensation', () => {
   test('rewindToTick returns the snapshot from history at that tick', () => {
@@ -93,5 +93,38 @@ describe('lag compensation', () => {
     })
 
     expect(hitEntityId).toBe(targetId)
+  })
+
+  test('checkShotInPast does not hit through a wall in the rewound snapshot', () => {
+    const world = createWorld({})
+    const shooterId = spawnPlayer(world, {
+      x: 100,
+      y: 100,
+      color: '#111111',
+    })
+    spawnPlayer(world, {
+      x: 260,
+      y: 100,
+      color: '#222222',
+    })
+    spawnWall(world, {
+      x: 170,
+      y: 60,
+      width: 40,
+      height: 80,
+    })
+    world.tick = 5
+
+    const hitEntityId = checkShotInPast({
+      aimX: 320,
+      aimY: 100,
+      currentSnapshot: serializeWorld({ world }),
+      history: [serializeWorld({ world })],
+      maxDistance: 300,
+      shooterId,
+      targetTick: 5,
+    })
+
+    expect(hitEntityId).toBeNull()
   })
 })

@@ -7,11 +7,14 @@ import {
 import type { Vector2, World } from '@shared/types.ts'
 import { listEntityIds } from '@shared/world.ts'
 
+import type { PredictedBullet } from './predictedBullets.ts'
+
 interface RenderOptions {
   aim: Vector2
   alpha: number
   context: CanvasRenderingContext2D
   localPlayerId: number | null
+  predictedBullets?: Array<PredictedBullet>
   remoteInterpolatedPositions?: Record<number, Vector2>
   previousPositions: Record<number, Vector2>
   world: World
@@ -67,6 +70,7 @@ export function renderGame({
   alpha,
   context,
   localPlayerId,
+  predictedBullets = [],
   remoteInterpolatedPositions = {},
   previousPositions,
   world,
@@ -115,6 +119,13 @@ export function renderGame({
   }
 
   for (const bulletId of listEntityIds(world.bullets)) {
+    if (
+      localPlayerId !== null &&
+      world.bullets[bulletId]?.ownerId === localPlayerId
+    ) {
+      continue
+    }
+
     const currentPosition = world.positions[bulletId]
     if (currentPosition === undefined) {
       continue
@@ -131,6 +142,23 @@ export function renderGame({
     context.shadowBlur = 10
     context.beginPath()
     context.arc(position.x, position.y, world.radii[bulletId], 0, Math.PI * 2)
+    context.fill()
+    context.restore()
+  }
+
+  for (const bullet of predictedBullets) {
+    context.save()
+    context.fillStyle = '#ffd166'
+    context.shadowColor = '#ffd166'
+    context.shadowBlur = 10
+    context.beginPath()
+    context.arc(
+      bullet.position.x,
+      bullet.position.y,
+      bullet.radius,
+      0,
+      Math.PI * 2
+    )
     context.fill()
     context.restore()
   }

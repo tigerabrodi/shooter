@@ -6,6 +6,7 @@ interface InputController {
   destroy: () => void
   getAim: () => Vector2
   getInput: (playerId: number) => PlayerInput
+  isFiring: () => boolean
 }
 
 const KEY_BINDINGS: Record<string, MovementKey> = {
@@ -112,6 +113,9 @@ export function createInputController(
         aimX: aim.x,
         aimY: aim.y,
       }
+    },
+    isFiring() {
+      return isFiring
     },
   }
 }

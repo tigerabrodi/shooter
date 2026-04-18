@@ -1,5 +1,7 @@
 import {
   DEFAULT_WALL_LAYOUT,
+  FIRE_COOLDOWN_TICKS,
+  INTERPOLATION_DELAY_MS,
   MAP_HEIGHT,
   MAP_WIDTH,
   TICK_RATE,
@@ -13,6 +15,11 @@ import { startGameLoop } from './gameLoop.ts'
 import { createInputController } from './input.ts'
 import { createLagSim, type LagSimConfig } from './lagSim.ts'
 import { createNetwork } from './network.ts'
+import {
+  spawnPredictedBullet,
+  stepPredictedBullets,
+  type PredictedBullet,
+} from './predictedBullets.ts'
 import { createPredictionBuffer } from './prediction.ts'
 import {
   computeRemoteInterpolatedPositions,
@@ -35,13 +42,13 @@ declare global {
         interpolationEnabled: boolean
         predictionEnabled: boolean
       }
+      getPredictedBulletCount: () => number
       getSnapshotTimeline: () => Array<{ receivedAt: number; tick: number }>
       getWorld: () => World
     }
   }
 }
 
-const INTERPOLATION_DELAY_MS = 100
 const MAX_SNAPSHOT_TIMELINE = 20
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')
@@ -122,6 +129,9 @@ let previousPositions = snapshotPositions(localWorld)
 let latestServerSnapshot: Snapshot | null = null
 let lastServerAckedSeq = 0
 let isConnected = false
+let localShotCooldownTicks = 0
+let nextShotSequence = 1
+let predictedBullets: Array<PredictedBullet> = []
 let snapshotTimeline: Array<TimedSnapshot> = []
 
 const lagSimConfig: LagSimConfig = {
@@ -239,6 +249,7 @@ window.__shooterDebug = {
     interpolationEnabled: netToggleState.interpolationEnabled,
     predictionEnabled: netToggleState.predictionEnabled,
   }),
+  getPredictedBulletCount: () => predictedBullets.length,
   getSnapshotTimeline: () =>
     snapshotTimeline.map((entry) => ({
       receivedAt: entry.receivedAt,
@@ -252,6 +263,9 @@ network.onDisconnect(() => {
   localPlayerId = null
   latestServerSnapshot = null
   lastServerAckedSeq = 0
+  localShotCooldownTicks = 0
+  nextShotSequence = 1
+  predictedBullets = []
   snapshotTimeline = []
   predictionBuffer.reset()
   previousPositions = snapshotPositions(localWorld)
@@ -264,6 +278,9 @@ network.onSnapshot((message) => {
 
   if (hasPlayerChanged) {
     localPlayerId = message.playerId
+    localShotCooldownTicks = 0
+    nextShotSequence = 1
+    predictedBullets = []
     predictionBuffer.reset()
     snapshotTimeline = []
   }
@@ -285,14 +302,50 @@ const stopLoop = startGameLoop({
   tickRate: TICK_RATE,
   update() {
     previousPositions = snapshotPositions(localWorld)
+    predictedBullets = stepPredictedBullets({
+      bullets: predictedBullets,
+      world: localWorld,
+    })
 
     if (!isConnected || localPlayerId === null) {
       updateHud()
       return
     }
 
+    localShotCooldownTicks = Math.max(0, localShotCooldownTicks - 1)
+
     const input = inputController.getInput(localPlayerId)
+    input.fire = false
     const clientTick = localWorld.tick
+    const aim = inputController.getAim()
+    const playerPosition = localWorld.positions[localPlayerId]
+
+    if (
+      inputController.isFiring() &&
+      localShotCooldownTicks === 0 &&
+      playerPosition !== undefined
+    ) {
+      const shotSeq = nextShotSequence++
+      const predictedBullet = spawnPredictedBullet({
+        aimX: aim.x,
+        aimY: aim.y,
+        originX: playerPosition.x,
+        originY: playerPosition.y,
+        ownerId: localPlayerId,
+        seq: shotSeq,
+      })
+
+      if (predictedBullet !== null) {
+        predictedBullets = [...predictedBullets, predictedBullet]
+        localShotCooldownTicks = FIRE_COOLDOWN_TICKS
+        network.sendShoot({
+          aimX: aim.x,
+          aimY: aim.y,
+          seq: shotSeq,
+          tick: clientTick,
+        })
+      }
+    }
 
     if (netToggleState.predictionEnabled) {
       predictionBuffer.addInput({ input })
@@ -306,11 +359,14 @@ const stopLoop = startGameLoop({
     updateHud()
   },
   render(alpha) {
+    const aim = inputController.getAim()
+
     renderGame({
-      aim: inputController.getAim(),
+      aim,
       alpha,
       context,
       localPlayerId,
+      predictedBullets,
       remoteInterpolatedPositions: netToggleState.interpolationEnabled
         ? computeRemoteInterpolatedPositions({
             targetTime: performance.now() - INTERPOLATION_DELAY_MS,

@@ -111,7 +111,7 @@ export function spawnBullet(
   world.radii[entityId] = BULLET_RADIUS
   world.bullets[entityId] = {
     ownerId: options.ownerId,
-    damage: BULLET_DAMAGE,
+    damage: options.damage ?? BULLET_DAMAGE,
   }
   return entityId
 }

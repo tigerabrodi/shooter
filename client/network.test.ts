@@ -3,7 +3,11 @@ import { setupServer } from 'msw/node'
 import { ws } from 'msw'
 
 import { createWorld, spawnPlayer } from '@shared/world.ts'
-import type { PlayerInput, ServerSnapshotMessage } from '@shared/types.ts'
+import type {
+  PlayerInput,
+  ServerShotMessage,
+  ServerSnapshotMessage,
+} from '@shared/types.ts'
 import { serializeWorld } from '@shared/snapshot.ts'
 
 import { createNetwork } from './network.ts'
@@ -53,6 +57,15 @@ function makeSnapshotMessage(): ServerSnapshotMessage {
     ackedSeq: 4,
     playerId,
     snapshot: serializeWorld({ world }),
+  }
+}
+
+function makeShotMessage(): ServerShotMessage {
+  return {
+    type: 'shot',
+    shooterId: 1,
+    shotSeq: 7,
+    targetId: 2,
   }
 }
 
@@ -116,6 +129,76 @@ describe('network', () => {
     )
 
     expect(actualSnapshot).toEqual(snapshotMessage)
+    network.close()
+  })
+
+  test('network sends shoot events as JSON over WebSocket', async () => {
+    const receivedMessage = new Promise<Record<string, unknown>>((resolve) => {
+      server.use(
+        socketLink.addEventListener('connection', ({ client }) => {
+          client.addEventListener('message', (event) => {
+            if (typeof event.data !== 'string') {
+              throw new Error('Expected string WebSocket message payload')
+            }
+
+            const parsedMessage = JSON.parse(event.data) as Record<
+              string,
+              unknown
+            >
+            if (parsedMessage.type !== 'shoot') {
+              return
+            }
+
+            resolve(parsedMessage)
+          })
+        })
+      )
+    })
+
+    const network = createNetwork({
+      reconnectDelayMs: 10,
+      url: 'ws://localhost:8080/ws',
+    })
+
+    await wait(20)
+    network.sendShoot({
+      aimX: 320,
+      aimY: 160,
+      seq: 7,
+      tick: 42,
+    })
+
+    await expect(receivedMessage).resolves.toEqual({
+      type: 'shoot',
+      seq: 7,
+      tick: 42,
+      aimX: 320,
+      aimY: 160,
+    })
+
+    network.close()
+  })
+
+  test('network fires shot callback when server sends a shot event', async () => {
+    const shotMessage = makeShotMessage()
+    server.use(
+      socketLink.addEventListener('connection', ({ client }) => {
+        client.send(JSON.stringify(shotMessage))
+      })
+    )
+
+    const network = createNetwork({
+      reconnectDelayMs: 10,
+      url: 'ws://localhost:8080/ws',
+    })
+
+    const actualShotMessage = await new Promise<ServerShotMessage>(
+      (resolve) => {
+        network.onShot(resolve)
+      }
+    )
+
+    expect(actualShotMessage).toEqual(shotMessage)
     network.close()
   })
 

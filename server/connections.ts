@@ -1,8 +1,10 @@
 import type {
   ClientId,
   ClientInputMessage,
+  ClientShootMessage,
   EntityId,
   PlayerInput,
+  ServerShotMessage,
   ServerSnapshotMessage,
   Snapshot,
 } from '@shared/types.ts'
@@ -18,6 +20,14 @@ export interface ParseClientMessageOptions {
 
 export interface ParsedClientInput {
   input: PlayerInput
+  tick: number
+}
+
+export interface ParsedClientShoot {
+  aimX: number
+  aimY: number
+  playerId: EntityId
+  seq: number
   tick: number
 }
 
@@ -47,10 +57,12 @@ export function parseClientInputMessage({
   message,
   playerId,
 }: ParseClientMessageOptions): ParsedClientInput | null {
-  let parsedMessage: ClientInputMessage
+  let parsedMessage: ClientInputMessage | ClientShootMessage
 
   try {
-    parsedMessage = JSON.parse(decodeMessage(message)) as ClientInputMessage
+    parsedMessage = JSON.parse(decodeMessage(message)) as
+      | ClientInputMessage
+      | ClientShootMessage
   } catch {
     return null
   }
@@ -81,6 +93,39 @@ export function parseClientInputMessage({
   }
 }
 
+export function parseClientShootMessage({
+  message,
+  playerId,
+}: ParseClientMessageOptions): ParsedClientShoot | null {
+  let parsedMessage: ClientInputMessage | ClientShootMessage
+
+  try {
+    parsedMessage = JSON.parse(decodeMessage(message)) as
+      | ClientInputMessage
+      | ClientShootMessage
+  } catch {
+    return null
+  }
+
+  if (
+    parsedMessage.type !== 'shoot' ||
+    typeof parsedMessage.seq !== 'number' ||
+    typeof parsedMessage.tick !== 'number' ||
+    typeof parsedMessage.aimX !== 'number' ||
+    typeof parsedMessage.aimY !== 'number'
+  ) {
+    return null
+  }
+
+  return {
+    aimX: parsedMessage.aimX,
+    aimY: parsedMessage.aimY,
+    playerId,
+    seq: parsedMessage.seq,
+    tick: parsedMessage.tick,
+  }
+}
+
 export function createSnapshotMessage({
   ackedSeq,
   playerId,
@@ -95,5 +140,22 @@ export function createSnapshotMessage({
     ackedSeq,
     playerId,
     snapshot,
+  }
+}
+
+export function createShotMessage({
+  shooterId,
+  shotSeq,
+  targetId,
+}: {
+  shooterId: EntityId
+  shotSeq: number
+  targetId: EntityId | null
+}): ServerShotMessage {
+  return {
+    type: 'shot',
+    shooterId,
+    shotSeq,
+    targetId,
   }
 }

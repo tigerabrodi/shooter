@@ -1,4 +1,5 @@
 export type EntityId = number
+export type ClientId = string
 
 export interface Vector2 {
   x: number
@@ -123,4 +124,24 @@ export interface RewindToTickOptions {
   history: Array<Snapshot>
   targetTick: number
   currentSnapshot?: Snapshot
+}
+
+export interface ClientInputMessage {
+  type: 'input'
+  seq: number
+  up?: boolean
+  down?: boolean
+  left?: boolean
+  right?: boolean
+  fire?: boolean
+  aimX?: number
+  aimY?: number
+  keys?: Partial<Record<'up' | 'down' | 'left' | 'right' | 'fire', boolean>>
+}
+
+export interface ServerSnapshotMessage {
+  type: 'snapshot'
+  ackedSeq: number
+  playerId: EntityId
+  snapshot: Snapshot
 }

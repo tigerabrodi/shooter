@@ -6,6 +6,11 @@ import type {
   Vector2,
 } from '@shared/types.ts'
 
+export interface ShotTraceResult {
+  hitDistance: number
+  targetId: EntityId | null
+}
+
 function cloneSnapshot(snapshot: Snapshot): Snapshot {
   return structuredClone(snapshot)
 }
@@ -161,6 +166,28 @@ export function checkShotInPast({
   shooterId,
   targetTick,
 }: LagCompShotOptions): EntityId | null {
+  const traceResult = traceShotInPast({
+    aimX,
+    aimY,
+    currentSnapshot,
+    history,
+    maxDistance,
+    shooterId,
+    targetTick,
+  })
+
+  return traceResult?.targetId ?? null
+}
+
+export function traceShotInPast({
+  aimX,
+  aimY,
+  currentSnapshot,
+  history,
+  maxDistance,
+  shooterId,
+  targetTick,
+}: LagCompShotOptions): ShotTraceResult | null {
   const snapshot = rewindToTick({ history, targetTick, currentSnapshot })
   const shooterPosition = snapshot.positions[shooterId]
 
@@ -178,7 +205,7 @@ export function checkShotInPast({
   }
 
   let closestHitEntityId: EntityId | null = null
-  let closestHitDistance = Number.POSITIVE_INFINITY
+  let closestHitDistance = maxDistance
 
   for (const wall of Object.values(snapshot.walls)) {
     const wallHitDistance = rayRectHitDistance(
@@ -227,5 +254,8 @@ export function checkShotInPast({
     closestHitEntityId = entityId
   }
 
-  return closestHitEntityId
+  return {
+    hitDistance: closestHitDistance,
+    targetId: closestHitEntityId,
+  }
 }

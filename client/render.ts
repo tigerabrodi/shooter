@@ -7,15 +7,15 @@ import {
 import type { Vector2, World } from '@shared/types.ts'
 import { listEntityIds } from '@shared/world.ts'
 
-import type { PredictedBullet } from './predictedBullets.ts'
+import type { ShotTracer } from './shotTracers.ts'
 
 interface RenderOptions {
   aim: Vector2
   alpha: number
   context: CanvasRenderingContext2D
   localPlayerId: number | null
-  predictedBullets?: Array<PredictedBullet>
   remoteInterpolatedPositions?: Record<number, Vector2>
+  shotTracers?: Array<ShotTracer>
   previousPositions: Record<number, Vector2>
   world: World
 }
@@ -70,8 +70,8 @@ export function renderGame({
   alpha,
   context,
   localPlayerId,
-  predictedBullets = [],
   remoteInterpolatedPositions = {},
+  shotTracers = [],
   previousPositions,
   world,
 }: RenderOptions): void {
@@ -118,48 +118,18 @@ export function renderGame({
     context.restore()
   }
 
-  for (const bulletId of listEntityIds(world.bullets)) {
-    if (
-      localPlayerId !== null &&
-      world.bullets[bulletId]?.ownerId === localPlayerId
-    ) {
-      continue
-    }
+  for (const tracer of shotTracers) {
+    const intensity = tracer.remainingTicks / tracer.ttlTicks
 
-    const currentPosition = world.positions[bulletId]
-    if (currentPosition === undefined) {
-      continue
-    }
-
-    const position = interpolatePosition(
-      currentPosition,
-      previousPositions[bulletId],
-      alpha
-    )
     context.save()
-    context.fillStyle = '#ffd166'
+    context.strokeStyle = `rgba(255, 209, 102, ${0.3 + intensity * 0.7})`
+    context.lineWidth = 2 + intensity * 2
     context.shadowColor = '#ffd166'
-    context.shadowBlur = 10
+    context.shadowBlur = 10 + intensity * 8
     context.beginPath()
-    context.arc(position.x, position.y, world.radii[bulletId], 0, Math.PI * 2)
-    context.fill()
-    context.restore()
-  }
-
-  for (const bullet of predictedBullets) {
-    context.save()
-    context.fillStyle = '#ffd166'
-    context.shadowColor = '#ffd166'
-    context.shadowBlur = 10
-    context.beginPath()
-    context.arc(
-      bullet.position.x,
-      bullet.position.y,
-      bullet.radius,
-      0,
-      Math.PI * 2
-    )
-    context.fill()
+    context.moveTo(tracer.start.x, tracer.start.y)
+    context.lineTo(tracer.end.x, tracer.end.y)
+    context.stroke()
     context.restore()
   }
 
@@ -203,10 +173,11 @@ export function renderGame({
   context.fillStyle = 'rgba(248, 250, 252, 0.9)'
   context.font = '14px ui-monospace, SFMono-Regular, Menlo, monospace'
   context.fillText('WASD move', 20, 28)
-  context.fillText('Mouse aim', 20, 48)
-  context.fillText('Hold click shoot', 20, 68)
+  context.fillText('Hold Shift sprint', 20, 48)
+  context.fillText('Mouse aim', 20, 68)
+  context.fillText('Hold click shoot', 20, 88)
   if (localPlayerId === null) {
-    context.fillText('Waiting for server...', 20, 96)
+    context.fillText('Waiting for server...', 20, 116)
   }
   context.restore()
 }

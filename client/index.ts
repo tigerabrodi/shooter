@@ -15,17 +15,19 @@ import { startGameLoop } from './gameLoop.ts'
 import { createInputController } from './input.ts'
 import { createLagSim, type LagSimConfig } from './lagSim.ts'
 import { createNetwork } from './network.ts'
-import {
-  spawnPredictedBullet,
-  stepPredictedBullets,
-  type PredictedBullet,
-} from './predictedBullets.ts'
 import { createPredictionBuffer } from './prediction.ts'
 import {
   computeRemoteInterpolatedPositions,
   type TimedSnapshot,
 } from './remoteInterpolation.ts'
 import { renderGame, snapshotPositions } from './render.ts'
+import {
+  createShotTracer,
+  createShotTracerFromWorld,
+  hasShotTracer,
+  stepShotTracers,
+  type ShotTracer,
+} from './shotTracers.ts'
 
 interface NetToggleState {
   interpolationEnabled: boolean
@@ -42,7 +44,7 @@ declare global {
         interpolationEnabled: boolean
         predictionEnabled: boolean
       }
-      getPredictedBulletCount: () => number
+      getShotTracerCount: () => number
       getSnapshotTimeline: () => Array<{ receivedAt: number; tick: number }>
       getWorld: () => World
     }
@@ -131,8 +133,8 @@ let lastServerAckedSeq = 0
 let isConnected = false
 let localShotCooldownTicks = 0
 let nextShotSequence = 1
-let predictedBullets: Array<PredictedBullet> = []
 let snapshotTimeline: Array<TimedSnapshot> = []
+let shotTracers: Array<ShotTracer> = []
 
 const lagSimConfig: LagSimConfig = {
   latencyMs: 0,
@@ -249,7 +251,7 @@ window.__shooterDebug = {
     interpolationEnabled: netToggleState.interpolationEnabled,
     predictionEnabled: netToggleState.predictionEnabled,
   }),
-  getPredictedBulletCount: () => predictedBullets.length,
+  getShotTracerCount: () => shotTracers.length,
   getSnapshotTimeline: () =>
     snapshotTimeline.map((entry) => ({
       receivedAt: entry.receivedAt,
@@ -265,8 +267,8 @@ network.onDisconnect(() => {
   lastServerAckedSeq = 0
   localShotCooldownTicks = 0
   nextShotSequence = 1
-  predictedBullets = []
   snapshotTimeline = []
+  shotTracers = []
   predictionBuffer.reset()
   previousPositions = snapshotPositions(localWorld)
   updateHud()
@@ -280,9 +282,9 @@ network.onSnapshot((message) => {
     localPlayerId = message.playerId
     localShotCooldownTicks = 0
     nextShotSequence = 1
-    predictedBullets = []
     predictionBuffer.reset()
     snapshotTimeline = []
+    shotTracers = []
   }
 
   isConnected = true
@@ -296,15 +298,37 @@ network.onSnapshot((message) => {
   updateHud()
 })
 
+network.onShot((message) => {
+  const tracerKey = `${message.shooterId}:${message.shotSeq}`
+
+  if (message.shooterId === localPlayerId) {
+    return
+  }
+
+  if (hasShotTracer({ key: tracerKey, tracers: shotTracers })) {
+    return
+  }
+
+  shotTracers = [
+    ...shotTracers,
+    createShotTracer({
+      endX: message.endX,
+      endY: message.endY,
+      key: tracerKey,
+      startX: message.originX,
+      startY: message.originY,
+    }),
+  ]
+})
+
 setupDevControls()
 
 const stopLoop = startGameLoop({
   tickRate: TICK_RATE,
   update() {
     previousPositions = snapshotPositions(localWorld)
-    predictedBullets = stepPredictedBullets({
-      bullets: predictedBullets,
-      world: localWorld,
+    shotTracers = stepShotTracers({
+      tracers: shotTracers,
     })
 
     if (!isConnected || localPlayerId === null) {
@@ -326,25 +350,25 @@ const stopLoop = startGameLoop({
       playerPosition !== undefined
     ) {
       const shotSeq = nextShotSequence++
-      const predictedBullet = spawnPredictedBullet({
+      const localTracer = createShotTracerFromWorld({
         aimX: aim.x,
         aimY: aim.y,
-        originX: playerPosition.x,
-        originY: playerPosition.y,
-        ownerId: localPlayerId,
-        seq: shotSeq,
+        key: `${localPlayerId}:${shotSeq}`,
+        shooterId: localPlayerId,
+        world: localWorld,
       })
 
-      if (predictedBullet !== null) {
-        predictedBullets = [...predictedBullets, predictedBullet]
-        localShotCooldownTicks = FIRE_COOLDOWN_TICKS
-        network.sendShoot({
-          aimX: aim.x,
-          aimY: aim.y,
-          seq: shotSeq,
-          tick: clientTick,
-        })
+      if (localTracer !== null) {
+        shotTracers = [...shotTracers, localTracer]
       }
+
+      localShotCooldownTicks = FIRE_COOLDOWN_TICKS
+      network.sendShoot({
+        aimX: aim.x,
+        aimY: aim.y,
+        seq: shotSeq,
+        tick: clientTick,
+      })
     }
 
     if (netToggleState.predictionEnabled) {
@@ -366,13 +390,13 @@ const stopLoop = startGameLoop({
       alpha,
       context,
       localPlayerId,
-      predictedBullets,
       remoteInterpolatedPositions: netToggleState.interpolationEnabled
         ? computeRemoteInterpolatedPositions({
             targetTime: performance.now() - INTERPOLATION_DELAY_MS,
             timeline: snapshotTimeline,
           })
         : {},
+      shotTracers,
       previousPositions,
       world: localWorld,
     })

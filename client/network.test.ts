@@ -42,6 +42,7 @@ function makeInput(
     down: overrides.down ?? false,
     left: overrides.left ?? false,
     right: overrides.right ?? false,
+    sprint: overrides.sprint ?? false,
     fire: overrides.fire ?? false,
     aimX: overrides.aimX ?? 0,
     aimY: overrides.aimY ?? 0,
@@ -63,6 +64,10 @@ function makeSnapshotMessage(): ServerSnapshotMessage {
 function makeShotMessage(): ServerShotMessage {
   return {
     type: 'shot',
+    endX: 220,
+    endY: 110,
+    originX: 100,
+    originY: 100,
     shooterId: 1,
     shotSeq: 7,
     targetId: 2,
@@ -91,7 +96,10 @@ describe('network', () => {
     })
 
     await wait(20)
-    network.sendInput({ input: makeInput(7, { right: true }), tick: 42 })
+    network.sendInput({
+      input: makeInput(7, { right: true, sprint: true }),
+      tick: 42,
+    })
 
     await expect(receivedMessage).resolves.toEqual({
       type: 'input',
@@ -101,6 +109,7 @@ describe('network', () => {
       down: false,
       left: false,
       right: true,
+      sprint: true,
       fire: false,
       aimX: 0,
       aimY: 0,

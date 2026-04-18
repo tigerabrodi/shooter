@@ -2,6 +2,7 @@ import {
   BULLET_SPEED,
   FIRE_COOLDOWN_TICKS,
   PLAYER_SPEED,
+  PLAYER_SPRINT_MULTIPLIER,
 } from '@shared/constants.ts'
 import type { PlayerInput, Vector2, World } from '@shared/types.ts'
 import { listEntityIds, spawnBullet } from '@shared/world.ts'
@@ -44,10 +45,13 @@ export function applyInputsSystem(
     const horizontal = Number(input.right) - Number(input.left)
     const vertical = Number(input.down) - Number(input.up)
     const moveDirection = normalizeVector(horizontal, vertical)
+    const moveSpeed = input.sprint
+      ? PLAYER_SPEED * PLAYER_SPRINT_MULTIPLIER
+      : PLAYER_SPEED
 
     world.velocities[playerId] = {
-      x: moveDirection.x * PLAYER_SPEED,
-      y: moveDirection.y * PLAYER_SPEED,
+      x: moveDirection.x * moveSpeed,
+      y: moveDirection.y * moveSpeed,
     }
 
     if (!input.fire || player.fireCooldownTicks > 0) {

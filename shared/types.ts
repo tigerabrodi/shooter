@@ -13,6 +13,7 @@ export interface PlayerInput {
   down: boolean
   left: boolean
   right: boolean
+  sprint: boolean
   fire: boolean
   aimX: number
   aimY: number
@@ -135,10 +136,13 @@ export interface ClientInputMessage {
   down?: boolean
   left?: boolean
   right?: boolean
+  sprint?: boolean
   fire?: boolean
   aimX?: number
   aimY?: number
-  keys?: Partial<Record<'up' | 'down' | 'left' | 'right' | 'fire', boolean>>
+  keys?: Partial<
+    Record<'up' | 'down' | 'left' | 'right' | 'sprint' | 'fire', boolean>
+  >
 }
 
 export interface ClientShootMessage {
@@ -158,6 +162,10 @@ export interface ServerSnapshotMessage {
 
 export interface ServerShotMessage {
   type: 'shot'
+  endX: number
+  endY: number
+  originX: number
+  originY: number
   shooterId: EntityId
   shotSeq: number
   targetId: EntityId | null

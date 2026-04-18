@@ -7,6 +7,7 @@ import {
   INTERPOLATION_DELAY_TICKS,
   MAX_REWIND_TICKS,
   PLAYER_SPEED,
+  PLAYER_SPRINT_MULTIPLIER,
 } from '@shared/constants.ts'
 import { deserializeWorld, serializeWorld } from '@shared/snapshot.ts'
 import type { PlayerInput } from '@shared/types.ts'
@@ -36,6 +37,7 @@ function makeQueuedInput(
       down: overrides.down ?? false,
       left: overrides.left ?? false,
       right: overrides.right ?? false,
+      sprint: overrides.sprint ?? false,
       fire: overrides.fire ?? false,
       aimX: overrides.aimX ?? 0,
       aimY: overrides.aimY ?? 0,
@@ -227,6 +229,27 @@ describe('server state', () => {
     expect(state.clients[client.clientId]?.inputQueue).toHaveLength(1)
   })
 
+  test('server applies sprint inputs at sprint speed', () => {
+    const state = createServerState({})
+    const client = connectClient({ state, clientId: 'client-1' })
+    const startX = state.world.positions[client.playerId].x
+
+    enqueueClientInput({
+      state,
+      clientId: client.clientId,
+      input: makeQueuedInput(client.playerId, 1, 0, {
+        right: true,
+        sprint: true,
+      }),
+    })
+
+    tickServer({ state })
+
+    expect(state.world.positions[client.playerId].x).toBeCloseTo(
+      startX + PLAYER_SPEED * PLAYER_SPRINT_MULTIPLIER * DT
+    )
+  })
+
   test('server ignores inputs that are too far in the future', () => {
     const state = createServerState({})
     const client = connectClient({ state, clientId: 'client-1' })
@@ -315,16 +338,20 @@ describe('server state', () => {
       },
     })
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
+      originX: 100,
+      originY: 100,
       shooterId,
       shotSeq: 1,
       targetId,
     })
+    expect(result?.endX).toBeCloseTo(204)
+    expect(result?.endY).toBeCloseTo(100)
     expect(state.world.health[targetId]).toBe(100 - BULLET_DAMAGE)
     expect(state.world.players[shooterId]?.fireCooldownTicks).toBe(
       FIRE_COOLDOWN_TICKS
     )
-    expect(Object.keys(state.world.bullets)).toHaveLength(1)
+    expect(Object.keys(state.world.bullets)).toHaveLength(0)
   })
 
   test('server does not process duplicate shot sequence numbers twice', () => {

@@ -213,6 +213,7 @@ export function createNetwork({
         down: input.down,
         left: input.left,
         right: input.right,
+        sprint: input.sprint,
         fire: input.fire,
         aimX: input.aimX,
         aimY: input.aimY,

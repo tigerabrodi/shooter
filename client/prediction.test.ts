@@ -15,6 +15,7 @@ function makeInput(
     down: overrides.down ?? false,
     left: overrides.left ?? false,
     right: overrides.right ?? false,
+    sprint: overrides.sprint ?? false,
     fire: overrides.fire ?? false,
     aimX: overrides.aimX ?? 0,
     aimY: overrides.aimY ?? 0,

@@ -41,6 +41,7 @@ describe('step', () => {
         down: false,
         left: tick % 5 === 0,
         right: tick % 2 === 0,
+        sprint: tick % 4 === 0,
         fire: tick % 9 === 0,
         aimX: 400,
         aimY: 300,

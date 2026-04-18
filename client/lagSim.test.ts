@@ -36,6 +36,7 @@ function makeInput(
     down: overrides.down ?? false,
     left: overrides.left ?? false,
     right: overrides.right ?? false,
+    sprint: overrides.sprint ?? false,
     fire: overrides.fire ?? false,
     aimX: overrides.aimX ?? 0,
     aimY: overrides.aimY ?? 0,
@@ -57,6 +58,10 @@ function makeSnapshotMessage(): ServerSnapshotMessage {
 function makeShotMessage(): ServerShotMessage {
   return {
     type: 'shot',
+    endX: 220,
+    endY: 110,
+    originX: 100,
+    originY: 100,
     shooterId: 1,
     shotSeq: 7,
     targetId: 2,

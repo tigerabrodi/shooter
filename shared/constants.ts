@@ -11,6 +11,7 @@ export const MAP_HEIGHT = 600
 
 export const PLAYER_RADIUS = 16
 export const PLAYER_SPEED = 180
+export const PLAYER_SPRINT_MULTIPLIER = 1.5
 export const PLAYER_MAX_HEALTH = 100
 
 export const BULLET_RADIUS = 4

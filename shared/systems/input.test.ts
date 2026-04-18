@@ -4,6 +4,7 @@ import {
   BULLET_SPEED,
   FIRE_COOLDOWN_TICKS,
   PLAYER_SPEED,
+  PLAYER_SPRINT_MULTIPLIER,
 } from '@shared/constants.ts'
 import { applyInputsSystem } from '@shared/systems/input.ts'
 import { createWorld, spawnPlayer } from '@shared/world.ts'
@@ -15,6 +16,7 @@ function makeInput(
     down: boolean
     left: boolean
     right: boolean
+    sprint: boolean
     fire: boolean
     aimX: number
     aimY: number
@@ -28,6 +30,7 @@ function makeInput(
     down: overrides.down ?? false,
     left: overrides.left ?? false,
     right: overrides.right ?? false,
+    sprint: overrides.sprint ?? false,
     fire: overrides.fire ?? false,
     aimX: overrides.aimX ?? 0,
     aimY: overrides.aimY ?? 0,
@@ -79,6 +82,20 @@ describe('applyInputsSystem', () => {
     expect(world.velocities[playerId].y).toBeCloseTo(
       -PLAYER_SPEED / Math.sqrt(2)
     )
+  })
+
+  test('sprint input increases move speed', () => {
+    const world = createWorld({})
+    const playerId = spawnPlayer(world)
+
+    applyInputsSystem(world, [
+      makeInput(playerId, { right: true, sprint: true }),
+    ])
+
+    expect(world.velocities[playerId]).toEqual({
+      x: PLAYER_SPEED * PLAYER_SPRINT_MULTIPLIER,
+      y: 0,
+    })
   })
 
   test('fire input spawns a bullet at player position with velocity in aim direction', () => {

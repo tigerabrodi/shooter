@@ -56,16 +56,28 @@ function broadcastSnapshot(snapshot: ReturnType<typeof serializeWorld>): void {
 }
 
 function broadcastShotMessage({
+  endX,
+  endY,
+  originX,
+  originY,
   shooterId,
   shotSeq,
   targetId,
 }: {
+  endX: number
+  endY: number
+  originX: number
+  originY: number
   shooterId: number
   shotSeq: number
   targetId: number | null
 }): void {
   const message = JSON.stringify(
     createShotMessage({
+      endX,
+      endY,
+      originX,
+      originY,
       shooterId,
       shotSeq,
       targetId,

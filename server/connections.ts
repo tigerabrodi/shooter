@@ -85,6 +85,7 @@ export function parseClientInputMessage({
       down: parsedMessage.down ?? keys.down ?? false,
       left: parsedMessage.left ?? keys.left ?? false,
       right: parsedMessage.right ?? keys.right ?? false,
+      sprint: parsedMessage.sprint ?? keys.sprint ?? false,
       fire: parsedMessage.fire ?? keys.fire ?? false,
       aimX: parsedMessage.aimX ?? 0,
       aimY: parsedMessage.aimY ?? 0,
@@ -144,16 +145,28 @@ export function createSnapshotMessage({
 }
 
 export function createShotMessage({
+  endX,
+  endY,
+  originX,
+  originY,
   shooterId,
   shotSeq,
   targetId,
 }: {
+  endX: number
+  endY: number
+  originX: number
+  originY: number
   shooterId: EntityId
   shotSeq: number
   targetId: EntityId | null
 }): ServerShotMessage {
   return {
     type: 'shot',
+    endX,
+    endY,
+    originX,
+    originY,
     shooterId,
     shotSeq,
     targetId,

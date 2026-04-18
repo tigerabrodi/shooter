@@ -2,11 +2,25 @@ import type { PlayerInput, Vector2 } from '@shared/types.ts'
 
 type MovementKey = 'up' | 'down' | 'left' | 'right'
 
+interface EventTargetLike {
+  addEventListener: EventTarget['addEventListener']
+  removeEventListener: EventTarget['removeEventListener']
+}
+
+interface VisibilityTargetLike extends EventTargetLike {
+  hidden?: boolean
+}
+
 interface InputController {
   destroy: () => void
   getAim: () => Vector2
   getInput: (playerId: number) => PlayerInput
   isFiring: () => boolean
+}
+
+interface CreateInputControllerOptions {
+  documentTarget?: VisibilityTargetLike
+  windowTarget?: EventTargetLike
 }
 
 const KEY_BINDINGS: Record<string, MovementKey> = {
@@ -21,7 +35,11 @@ const KEY_BINDINGS: Record<string, MovementKey> = {
 }
 
 export function createInputController(
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
+  {
+    documentTarget = document,
+    windowTarget = window,
+  }: CreateInputControllerOptions = {}
 ): InputController {
   const movementState = {
     up: false,
@@ -31,10 +49,20 @@ export function createInputController(
   }
 
   let isFiring = false
+  let isSprinting = false
   let nextSequence = 1
   let aim: Vector2 = {
     x: canvas.width / 2,
     y: canvas.height / 2,
+  }
+
+  function resetInputState(): void {
+    movementState.up = false
+    movementState.down = false
+    movementState.left = false
+    movementState.right = false
+    isFiring = false
+    isSprinting = false
   }
 
   function updateAim(clientX: number, clientY: number): void {
@@ -45,24 +73,40 @@ export function createInputController(
     }
   }
 
-  function onKeyDown(event: KeyboardEvent): void {
-    const binding = KEY_BINDINGS[event.key]
+  function onKeyDown(event: Event): void {
+    const keyboardEvent = event as KeyboardEvent
+
+    if (keyboardEvent.key === 'Shift') {
+      isSprinting = true
+      keyboardEvent.preventDefault()
+      return
+    }
+
+    const binding = KEY_BINDINGS[keyboardEvent.key]
     if (binding === undefined) {
       return
     }
 
     movementState[binding] = true
-    event.preventDefault()
+    keyboardEvent.preventDefault()
   }
 
-  function onKeyUp(event: KeyboardEvent): void {
-    const binding = KEY_BINDINGS[event.key]
+  function onKeyUp(event: Event): void {
+    const keyboardEvent = event as KeyboardEvent
+
+    if (keyboardEvent.key === 'Shift') {
+      isSprinting = false
+      keyboardEvent.preventDefault()
+      return
+    }
+
+    const binding = KEY_BINDINGS[keyboardEvent.key]
     if (binding === undefined) {
       return
     }
 
     movementState[binding] = false
-    event.preventDefault()
+    keyboardEvent.preventDefault()
   }
 
   function onPointerMove(event: PointerEvent): void {
@@ -82,20 +126,36 @@ export function createInputController(
     event.preventDefault()
   }
 
-  window.addEventListener('keydown', onKeyDown)
-  window.addEventListener('keyup', onKeyUp)
+  function onBlur(): void {
+    resetInputState()
+  }
+
+  function onVisibilityChange(): void {
+    if (documentTarget.hidden !== true) {
+      return
+    }
+
+    resetInputState()
+  }
+
+  windowTarget.addEventListener('keydown', onKeyDown)
+  windowTarget.addEventListener('keyup', onKeyUp)
   canvas.addEventListener('pointermove', onPointerMove)
   canvas.addEventListener('pointerdown', onPointerDown)
-  window.addEventListener('pointerup', onPointerUp)
+  windowTarget.addEventListener('pointerup', onPointerUp)
+  windowTarget.addEventListener('blur', onBlur)
+  documentTarget.addEventListener('visibilitychange', onVisibilityChange)
   canvas.addEventListener('contextmenu', onContextMenu)
 
   return {
     destroy() {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
+      windowTarget.removeEventListener('keydown', onKeyDown)
+      windowTarget.removeEventListener('keyup', onKeyUp)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerdown', onPointerDown)
-      window.removeEventListener('pointerup', onPointerUp)
+      windowTarget.removeEventListener('pointerup', onPointerUp)
+      windowTarget.removeEventListener('blur', onBlur)
+      documentTarget.removeEventListener('visibilitychange', onVisibilityChange)
       canvas.removeEventListener('contextmenu', onContextMenu)
     },
     getAim() {
@@ -109,6 +169,7 @@ export function createInputController(
         down: movementState.down,
         left: movementState.left,
         right: movementState.right,
+        sprint: isSprinting,
         fire: isFiring,
         aimX: aim.x,
         aimY: aim.y,

@@ -1,13 +1,12 @@
 import {
   BULLET_DAMAGE,
-  BULLET_SPEED,
   DEFAULT_WALL_LAYOUT,
   FIRE_COOLDOWN_TICKS,
+  INTERPOLATION_DELAY_TICKS,
   MAX_REWIND_TICKS,
   MAX_SHOT_DISTANCE,
-  INTERPOLATION_DELAY_TICKS,
 } from '@shared/constants.ts'
-import { checkShotInPast } from '@shared/lagcomp.ts'
+import { traceShotInPast } from '@shared/lagcomp.ts'
 import { serializeWorld } from '@shared/snapshot.ts'
 import { step } from '@shared/step.ts'
 import type {
@@ -21,7 +20,6 @@ import {
   createWorld,
   destroyEntity,
   spawnPlayer,
-  spawnBullet,
   spawnWall,
 } from '@shared/world.ts'
 
@@ -94,6 +92,10 @@ export interface ProcessClientShootOptions {
 }
 
 export interface ProcessClientShootResult {
+  endX: number
+  endY: number
+  originX: number
+  originY: number
   shooterId: EntityId
   shotSeq: number
   targetId: EntityId | null
@@ -335,7 +337,7 @@ export function processClientShoot({
     shot.tick - INTERPOLATION_DELAY_TICKS
   )
   const currentSnapshot = serializeWorld({ world: state.world })
-  const targetId = checkShotInPast({
+  const traceResult = traceShotInPast({
     aimX: shot.aimX,
     aimY: shot.aimY,
     currentSnapshot,
@@ -344,28 +346,23 @@ export function processClientShoot({
     shooterId: client.playerId,
     targetTick,
   })
-
-  spawnBullet(state.world, {
-    x: shooterPosition.x,
-    y: shooterPosition.y,
-    velocityX: shotDirection.x * BULLET_SPEED,
-    velocityY: shotDirection.y * BULLET_SPEED,
-    ownerId: client.playerId,
-    damage: 0,
-  })
   shooter.fireCooldownTicks = FIRE_COOLDOWN_TICKS
 
-  if (targetId !== null) {
+  if (traceResult?.targetId !== null && traceResult !== null) {
     applyShotDamage({
       state,
-      targetId,
+      targetId: traceResult.targetId,
     })
   }
 
   return {
+    endX: shooterPosition.x + shotDirection.x * (traceResult?.hitDistance ?? 0),
+    endY: shooterPosition.y + shotDirection.y * (traceResult?.hitDistance ?? 0),
+    originX: shooterPosition.x,
+    originY: shooterPosition.y,
     shooterId: client.playerId,
     shotSeq: shot.seq,
-    targetId,
+    targetId: traceResult?.targetId ?? null,
   }
 }
 

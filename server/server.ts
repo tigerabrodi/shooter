@@ -1,7 +1,13 @@
+import { DEFAULT_WALL_LAYOUT } from '@shared/constants.ts'
 import { serializeWorld } from '@shared/snapshot.ts'
 import { step } from '@shared/step.ts'
 import type { ClientId, PlayerInput, Snapshot, World } from '@shared/types.ts'
-import { createWorld, destroyEntity, spawnPlayer } from '@shared/world.ts'
+import {
+  createWorld,
+  destroyEntity,
+  spawnPlayer,
+  spawnWall,
+} from '@shared/world.ts'
 
 import { pushSnapshotToHistory } from './history.ts'
 
@@ -99,9 +105,19 @@ function getTickInputs(state: ServerState): Array<PlayerInput> {
   return tickInputs
 }
 
+function createDefaultServerWorld(): World {
+  const world = createWorld({})
+
+  for (const wall of DEFAULT_WALL_LAYOUT) {
+    spawnWall(world, wall)
+  }
+
+  return world
+}
+
 export function createServerState({
   historyLimit = DEFAULT_HISTORY_LIMIT,
-  world = createWorld({}),
+  world = createDefaultServerWorld(),
 }: CreateServerStateOptions): ServerState {
   return {
     clients: {},

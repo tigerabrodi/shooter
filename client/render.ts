@@ -11,7 +11,8 @@ interface RenderOptions {
   aim: Vector2
   alpha: number
   context: CanvasRenderingContext2D
-  localPlayerId: number
+  localPlayerId: number | null
+  remoteInterpolatedPositions?: Record<number, Vector2>
   previousPositions: Record<number, Vector2>
   world: World
 }
@@ -66,6 +67,7 @@ export function renderGame({
   alpha,
   context,
   localPlayerId,
+  remoteInterpolatedPositions = {},
   previousPositions,
   world,
 }: RenderOptions): void {
@@ -93,8 +95,9 @@ export function renderGame({
     context.strokeRect(wall.x, wall.y, wall.width, wall.height)
   }
 
-  const localPlayerPosition = world.positions[localPlayerId]
-  if (localPlayerPosition !== undefined) {
+  const localPlayerPosition =
+    localPlayerId === null ? undefined : world.positions[localPlayerId]
+  if (localPlayerPosition !== undefined && localPlayerId !== null) {
     const interpolatedPlayerPosition = interpolatePosition(
       localPlayerPosition,
       previousPositions[localPlayerId],
@@ -139,11 +142,15 @@ export function renderGame({
       continue
     }
 
-    const position = interpolatePosition(
-      currentPosition,
-      previousPositions[playerId],
-      alpha
-    )
+    const position =
+      playerId !== localPlayerId &&
+      remoteInterpolatedPositions[playerId] !== undefined
+        ? remoteInterpolatedPositions[playerId]
+        : interpolatePosition(
+            currentPosition,
+            previousPositions[playerId],
+            alpha
+          )
     const healthRatio = world.health[playerId] / PLAYER_MAX_HEALTH
 
     context.save()
@@ -170,5 +177,8 @@ export function renderGame({
   context.fillText('WASD move', 20, 28)
   context.fillText('Mouse aim', 20, 48)
   context.fillText('Hold click shoot', 20, 68)
+  if (localPlayerId === null) {
+    context.fillText('Waiting for server...', 20, 96)
+  }
   context.restore()
 }

@@ -43,6 +43,55 @@
         letter-spacing: 0.04em;
         backdrop-filter: blur(8px);
       }
+      #dev-controls {
+        position: absolute;
+        top: 24px;
+        right: 24px;
+        z-index: 1;
+        width: min(280px, calc(100% - 48px));
+        padding: 12px;
+        background: rgba(8, 16, 29, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 14px;
+        backdrop-filter: blur(8px);
+      }
+      #dev-controls[hidden] {
+        display: none;
+      }
+      .dev-title {
+        margin-bottom: 10px;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(248, 250, 252, 0.78);
+      }
+      .control-row {
+        display: grid;
+        gap: 6px;
+        margin-top: 10px;
+        font-size: 13px;
+      }
+      .control-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 10px;
+        font-size: 13px;
+      }
+      .toggle-row input {
+        width: 16px;
+        height: 16px;
+      }
+      input[type='range'] {
+        width: 100%;
+      }
       canvas {
         display: block;
         width: 100%;
@@ -57,6 +106,45 @@
   <body>
     <div class="shell">
       <div id="hud"></div>
+      <div id="dev-controls" hidden>
+        <div class="dev-title">Net Debug</div>
+        <label class="control-row" for="latency">
+          <span class="control-label">
+            <span>Lag</span>
+            <span id="latency-value">0 ms</span>
+          </span>
+          <input
+            id="latency"
+            type="range"
+            min="0"
+            max="300"
+            step="10"
+            value="0"
+          />
+        </label>
+        <label class="control-row" for="drop-rate">
+          <span class="control-label">
+            <span>Drop</span>
+            <span id="drop-rate-value">0%</span>
+          </span>
+          <input
+            id="drop-rate"
+            type="range"
+            min="0"
+            max="25"
+            step="1"
+            value="0"
+          />
+        </label>
+        <label class="toggle-row" for="prediction-enabled">
+          <span>Prediction</span>
+          <input id="prediction-enabled" type="checkbox" checked />
+        </label>
+        <label class="toggle-row" for="interpolation-enabled">
+          <span>Interpolation</span>
+          <input id="interpolation-enabled" type="checkbox" checked />
+        </label>
+      </div>
       <canvas id="game" width="800" height="600"></canvas>
     </div>
     <script type="module" src="./index.ts"></script>

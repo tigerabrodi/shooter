@@ -9,20 +9,56 @@
       body {
         margin: 0;
         padding: 0;
-        background: #111;
-        color: #eee;
-        font-family: system-ui, sans-serif;
+        min-height: 100%;
+        background:
+          radial-gradient(
+            circle at top,
+            rgba(255, 122, 89, 0.18),
+            transparent 32%
+          ),
+          linear-gradient(180deg, #08101d 0%, #101826 100%);
+        color: #f8fafc;
+        font-family: 'Trebuchet MS', 'Gill Sans', sans-serif;
+      }
+      body {
+        display: grid;
+        place-items: center;
         overflow: hidden;
+      }
+      .shell {
+        position: relative;
+        width: min(100vw - 24px, 960px);
+        padding: 12px;
+      }
+      #hud {
+        position: absolute;
+        top: 24px;
+        left: 24px;
+        z-index: 1;
+        padding: 8px 12px;
+        background: rgba(8, 16, 29, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        backdrop-filter: blur(8px);
       }
       canvas {
         display: block;
-        margin: 0 auto;
-        background: #222;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 4 / 3;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 18px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
       }
     </style>
   </head>
   <body>
-    <canvas id="game" width="800" height="600"></canvas>
+    <div class="shell">
+      <div id="hud"></div>
+      <canvas id="game" width="800" height="600"></canvas>
+    </div>
     <script type="module" src="./index.ts"></script>
   </body>
 </html>

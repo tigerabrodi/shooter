@@ -4,10 +4,9 @@ import {
   MAP_WIDTH,
   TICK_RATE,
 } from '@shared/constants.ts'
-import { interpolateSnapshots } from '@shared/interpolate.ts'
 import { reconcile } from '@shared/reconcile.ts'
 import { step } from '@shared/step.ts'
-import type { Snapshot, Vector2, World } from '@shared/types.ts'
+import type { Snapshot, World } from '@shared/types.ts'
 import { createWorld, spawnWall } from '@shared/world.ts'
 
 import { startGameLoop } from './gameLoop.ts'
@@ -15,12 +14,11 @@ import { createInputController } from './input.ts'
 import { createLagSim, type LagSimConfig } from './lagSim.ts'
 import { createNetwork } from './network.ts'
 import { createPredictionBuffer } from './prediction.ts'
+import {
+  computeRemoteInterpolatedPositions,
+  type TimedSnapshot,
+} from './remoteInterpolation.ts'
 import { renderGame, snapshotPositions } from './render.ts'
-
-interface TimedSnapshot {
-  receivedAt: number
-  snapshot: Snapshot
-}
 
 interface NetToggleState {
   interpolationEnabled: boolean
@@ -98,42 +96,6 @@ function trimSnapshotTimeline({
   }
 
   return timeline.slice(timeline.length - MAX_SNAPSHOT_TIMELINE)
-}
-
-function computeRemoteInterpolatedPositions({
-  timeline,
-  interpolationEnabled,
-}: {
-  timeline: Array<TimedSnapshot>
-  interpolationEnabled: boolean
-}): Record<number, Vector2> {
-  if (!interpolationEnabled || timeline.length === 0) {
-    return {}
-  }
-
-  const targetTime = performance.now() - INTERPOLATION_DELAY_MS
-
-  while (timeline.length >= 2 && timeline[1].receivedAt <= targetTime) {
-    timeline.shift()
-  }
-
-  if (timeline.length === 1) {
-    return snapshotPositions(timeline[0].snapshot)
-  }
-
-  const earlier = timeline[0]
-  const later = timeline[1]
-  const timeSpan = later.receivedAt - earlier.receivedAt
-
-  if (timeSpan <= 0) {
-    return snapshotPositions(later.snapshot)
-  }
-
-  return interpolateSnapshots({
-    earlierSnapshot: earlier.snapshot,
-    laterSnapshot: later.snapshot,
-    alpha: (targetTime - earlier.receivedAt) / timeSpan,
-  })
 }
 
 function formatDropRate(dropRate: number): string {
@@ -349,10 +311,12 @@ const stopLoop = startGameLoop({
       alpha,
       context,
       localPlayerId,
-      remoteInterpolatedPositions: computeRemoteInterpolatedPositions({
-        timeline: snapshotTimeline,
-        interpolationEnabled: netToggleState.interpolationEnabled,
-      }),
+      remoteInterpolatedPositions: netToggleState.interpolationEnabled
+        ? computeRemoteInterpolatedPositions({
+            targetTime: performance.now() - INTERPOLATION_DELAY_MS,
+            timeline: snapshotTimeline,
+          })
+        : {},
       previousPositions,
       world: localWorld,
     })

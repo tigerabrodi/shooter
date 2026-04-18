@@ -36,7 +36,7 @@ if (context === null) {
 canvas.width = MAP_WIDTH
 canvas.height = MAP_HEIGHT
 
-const world = createWorld()
+const world = createWorld({})
 for (const wall of DEFAULT_WALL_LAYOUT) {
   spawnWall(world, wall)
 }

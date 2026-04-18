@@ -6,7 +6,7 @@ import { createWorld, spawnBullet, spawnPlayer } from '@shared/world.ts'
 
 describe('despawnSystem', () => {
   test('despawnSystem destroys marked bullets', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const bulletId = spawnBullet(world, {
       x: 40,
       y: 50,
@@ -25,7 +25,7 @@ describe('despawnSystem', () => {
   })
 
   test('despawnSystem respawns marked player with full health', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 20, y: 30 })
 
     world.health[playerId] = 0

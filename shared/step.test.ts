@@ -5,7 +5,7 @@ import { createWorld, spawnPlayer, spawnWall } from '@shared/world.ts'
 
 describe('step', () => {
   test('step increments world.tick by 1', () => {
-    const world = createWorld()
+    const world = createWorld({})
 
     step(world)
 
@@ -13,7 +13,7 @@ describe('step', () => {
   })
 
   test('step with no entities does nothing', () => {
-    const world = createWorld()
+    const world = createWorld({})
 
     step(world)
 
@@ -24,8 +24,8 @@ describe('step', () => {
   })
 
   test('step is deterministic: same state + same inputs = same output', () => {
-    const firstWorld = createWorld()
-    const secondWorld = createWorld()
+    const firstWorld = createWorld({})
+    const secondWorld = createWorld({})
 
     const firstPlayerId = spawnPlayer(firstWorld, { x: 120, y: 120 })
     const secondPlayerId = spawnPlayer(secondWorld, { x: 120, y: 120 })

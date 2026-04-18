@@ -8,6 +8,7 @@ import {
   SPAWN_POINTS,
 } from '@shared/constants.ts'
 import type {
+  CreateWorldOptions,
   EntityId,
   SpawnBulletOptions,
   SpawnPlayerOptions,
@@ -47,7 +48,9 @@ export function chooseRespawnPoint(world: World): Vector2 {
   return copyPoint(SPAWN_POINTS[index])
 }
 
-export function createWorld(seed = DEFAULT_RANDOM_SEED): World {
+export function createWorld({
+  seed = DEFAULT_RANDOM_SEED,
+}: CreateWorldOptions = {}): World {
   return {
     tick: 0,
     nextEntityId: 1,

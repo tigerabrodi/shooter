@@ -5,7 +5,7 @@ import { createWorld, destroyEntity, spawnPlayer } from '@shared/world.ts'
 
 describe('world', () => {
   test('createWorld returns an empty world', () => {
-    const world = createWorld()
+    const world = createWorld({})
 
     expect(world.tick).toBe(0)
     expect(world.nextEntityId).toBe(1)
@@ -20,7 +20,7 @@ describe('world', () => {
   })
 
   test('spawnPlayer adds position, velocity, health, player components', () => {
-    const world = createWorld()
+    const world = createWorld({})
 
     const playerId = spawnPlayer(world, { x: 32, y: 48, color: '#ffffff' })
 
@@ -36,7 +36,7 @@ describe('world', () => {
   })
 
   test('spawnPlayer assigns unique entity IDs', () => {
-    const world = createWorld()
+    const world = createWorld({})
 
     const firstId = spawnPlayer(world)
     const secondId = spawnPlayer(world)
@@ -47,7 +47,7 @@ describe('world', () => {
   })
 
   test('destroyEntity removes all components for that entity', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world)
 
     destroyEntity(world, playerId)
@@ -60,7 +60,7 @@ describe('world', () => {
   })
 
   test('destroyEntity on non-existent entity does nothing', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const snapshot = structuredClone(world)
 
     destroyEntity(world, 999)

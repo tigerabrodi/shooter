@@ -36,7 +36,7 @@ function makeInput(
 
 describe('applyInputsSystem', () => {
   test('WASD input sets velocity toward that direction', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 100, y: 100 })
 
     applyInputsSystem(world, [makeInput(playerId, { up: true })])
@@ -45,7 +45,7 @@ describe('applyInputsSystem', () => {
   })
 
   test('no input sets velocity to zero', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world)
 
     world.velocities[playerId] = { x: 25, y: -10 }
@@ -56,7 +56,7 @@ describe('applyInputsSystem', () => {
   })
 
   test('opposing inputs cancel (W+S = no vertical movement)', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world)
 
     applyInputsSystem(world, [makeInput(playerId, { up: true, down: true })])
@@ -65,7 +65,7 @@ describe('applyInputsSystem', () => {
   })
 
   test('diagonal input is normalized (W+D does not move faster than W alone)', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world)
 
     applyInputsSystem(world, [makeInput(playerId, { up: true, right: true })])
@@ -82,7 +82,7 @@ describe('applyInputsSystem', () => {
   })
 
   test('fire input spawns a bullet at player position with velocity in aim direction', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 50, y: 75 })
 
     applyInputsSystem(world, [
@@ -100,7 +100,7 @@ describe('applyInputsSystem', () => {
   })
 
   test('fire input on cooldown does not spawn a bullet', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world)
 
     world.players[playerId].fireCooldownTicks = FIRE_COOLDOWN_TICKS

@@ -6,7 +6,7 @@ import { createWorld, spawnBullet, spawnPlayer } from '@shared/world.ts'
 
 describe('damageSystem', () => {
   test('bullet overlapping a player reduces player health', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const shooterId = spawnPlayer(world, { x: 40, y: 40 })
     const targetId = spawnPlayer(world, { x: 120, y: 120 })
 
@@ -24,7 +24,7 @@ describe('damageSystem', () => {
   })
 
   test('bullet is marked for despawn after hitting a player', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const shooterId = spawnPlayer(world, { x: 0, y: 0 })
     const targetId = spawnPlayer(world, { x: 100, y: 100 })
 
@@ -43,7 +43,7 @@ describe('damageSystem', () => {
   })
 
   test('bullet does not damage its own owner', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const shooterId = spawnPlayer(world, { x: 100, y: 100 })
 
     spawnBullet(world, {
@@ -60,7 +60,7 @@ describe('damageSystem', () => {
   })
 
   test('player health does not go below zero', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const shooterId = spawnPlayer(world, { x: 0, y: 0 })
     const targetId = spawnPlayer(world, { x: 100, y: 100 })
 
@@ -80,7 +80,7 @@ describe('damageSystem', () => {
   })
 
   test('player with 0 health is marked for respawn', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const shooterId = spawnPlayer(world, { x: 0, y: 0 })
     const targetId = spawnPlayer(world, { x: 100, y: 100 })
 

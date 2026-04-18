@@ -49,6 +49,39 @@ export interface World {
   pendingDespawn: Array<EntityId>
 }
 
+export type Snapshot = World
+
+export type InterpolatedPositions = Record<EntityId, Vector2>
+
+export interface CreateWorldOptions {
+  seed?: number
+}
+
+export interface SerializeWorldOptions {
+  world: World
+}
+
+export interface DeserializeWorldOptions {
+  snapshot: Snapshot
+}
+
+export interface InterpolateSnapshotsOptions {
+  earlierSnapshot: Snapshot
+  laterSnapshot: Snapshot
+  alpha: number
+}
+
+export interface ReconcileOptions {
+  serverSnapshot: Snapshot
+  ackedSeq: number
+  pendingInputs: Array<PlayerInput>
+}
+
+export interface ReconcileResult {
+  world: World
+  remainingInputs: Array<PlayerInput>
+}
+
 export interface SpawnPlayerOptions {
   x?: number
   y?: number
@@ -74,4 +107,20 @@ export interface CollisionResolution {
   x: number
   y: number
   axis: 'x' | 'y' | null
+}
+
+export interface LagCompShotOptions {
+  aimX: number
+  aimY: number
+  currentSnapshot: Snapshot
+  history: Array<Snapshot>
+  maxDistance: number
+  shooterId: EntityId
+  targetTick: number
+}
+
+export interface RewindToTickOptions {
+  history: Array<Snapshot>
+  targetTick: number
+  currentSnapshot?: Snapshot
 }

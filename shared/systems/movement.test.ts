@@ -6,7 +6,7 @@ import { createWorld, spawnBullet, spawnPlayer } from '@shared/world.ts'
 
 describe('movementSystem', () => {
   test('entity with position and velocity moves by velocity * dt each tick', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 10, y: 20 })
 
     world.velocities[playerId] = { x: 120, y: -60 }
@@ -18,7 +18,7 @@ describe('movementSystem', () => {
   })
 
   test('entity with only position does not move', () => {
-    const world = createWorld()
+    const world = createWorld({})
 
     world.positions[99] = { x: 10, y: 20 }
 
@@ -28,7 +28,7 @@ describe('movementSystem', () => {
   })
 
   test('entity with only velocity does nothing', () => {
-    const world = createWorld()
+    const world = createWorld({})
 
     world.velocities[77] = { x: 90, y: 45 }
 
@@ -38,7 +38,7 @@ describe('movementSystem', () => {
   })
 
   test('negative velocity moves entity backward', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 30, y: 30 })
 
     world.velocities[playerId] = { x: -90, y: -30 }
@@ -50,7 +50,7 @@ describe('movementSystem', () => {
   })
 
   test('zero velocity keeps entity stationary', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 45, y: 90 })
 
     movementSystem(world)
@@ -59,7 +59,7 @@ describe('movementSystem', () => {
   })
 
   test('bullet position updates each tick by velocity * dt', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const bulletId = spawnBullet(world, {
       x: 100,
       y: 200,

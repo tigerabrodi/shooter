@@ -12,7 +12,7 @@ import {
 
 describe('collisionSystem', () => {
   test('circle does not overlap with a wall it is not touching', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 40, y: 40 })
 
     spawnWall(world, { x: 100, y: 100, width: 80, height: 40 })
@@ -23,7 +23,7 @@ describe('collisionSystem', () => {
   })
 
   test('circle overlapping wall gets pushed to the boundary', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 90, y: 120 })
 
     spawnWall(world, { x: 100, y: 100, width: 80, height: 40 })
@@ -37,7 +37,7 @@ describe('collisionSystem', () => {
   })
 
   test('circle moving into a wall stops at the boundary', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 83, y: 120 })
 
     spawnWall(world, { x: 100, y: 100, width: 80, height: 40 })
@@ -54,7 +54,7 @@ describe('collisionSystem', () => {
   })
 
   test('circle between two walls does not get stuck', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const playerId = spawnPlayer(world, { x: 150, y: 120 })
 
     spawnWall(world, { x: 100, y: 60, width: 20, height: 220 })
@@ -69,7 +69,7 @@ describe('collisionSystem', () => {
   })
 
   test('bullet overlapping a wall is marked for despawn', () => {
-    const world = createWorld()
+    const world = createWorld({})
     const bulletId = spawnBullet(world, {
       x: 120,
       y: 120,

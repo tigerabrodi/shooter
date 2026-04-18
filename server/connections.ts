@@ -16,6 +16,11 @@ export interface ParseClientMessageOptions {
   playerId: EntityId
 }
 
+export interface ParsedClientInput {
+  input: PlayerInput
+  tick: number
+}
+
 function decodeMessage(
   rawMessage: ParseClientMessageOptions['message']
 ): string {
@@ -41,7 +46,7 @@ export function createClientId(): ClientId {
 export function parseClientInputMessage({
   message,
   playerId,
-}: ParseClientMessageOptions): PlayerInput | null {
+}: ParseClientMessageOptions): ParsedClientInput | null {
   let parsedMessage: ClientInputMessage
 
   try {
@@ -50,22 +55,29 @@ export function parseClientInputMessage({
     return null
   }
 
-  if (parsedMessage.type !== 'input' || typeof parsedMessage.seq !== 'number') {
+  if (
+    parsedMessage.type !== 'input' ||
+    typeof parsedMessage.seq !== 'number' ||
+    typeof parsedMessage.tick !== 'number'
+  ) {
     return null
   }
 
   const keys = parsedMessage.keys ?? {}
 
   return {
-    playerId,
-    seq: parsedMessage.seq,
-    up: parsedMessage.up ?? keys.up ?? false,
-    down: parsedMessage.down ?? keys.down ?? false,
-    left: parsedMessage.left ?? keys.left ?? false,
-    right: parsedMessage.right ?? keys.right ?? false,
-    fire: parsedMessage.fire ?? keys.fire ?? false,
-    aimX: parsedMessage.aimX ?? 0,
-    aimY: parsedMessage.aimY ?? 0,
+    input: {
+      playerId,
+      seq: parsedMessage.seq,
+      up: parsedMessage.up ?? keys.up ?? false,
+      down: parsedMessage.down ?? keys.down ?? false,
+      left: parsedMessage.left ?? keys.left ?? false,
+      right: parsedMessage.right ?? keys.right ?? false,
+      fire: parsedMessage.fire ?? keys.fire ?? false,
+      aimX: parsedMessage.aimX ?? 0,
+      aimY: parsedMessage.aimY ?? 0,
+    },
+    tick: parsedMessage.tick,
   }
 }
 

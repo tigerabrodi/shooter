@@ -129,6 +129,7 @@ export interface RewindToTickOptions {
 export interface ClientInputMessage {
   type: 'input'
   seq: number
+  tick: number
   up?: boolean
   down?: boolean
   left?: boolean

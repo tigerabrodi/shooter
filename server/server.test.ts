@@ -12,21 +12,25 @@ import {
   tickServer,
 } from './server.ts'
 
-function makeInput(
+function makeQueuedInput(
   playerId: number,
   seq: number,
+  tick: number,
   overrides: Partial<Omit<PlayerInput, 'playerId' | 'seq'>> = {}
-): PlayerInput {
+): { input: PlayerInput; tick: number } {
   return {
-    playerId,
-    seq,
-    up: overrides.up ?? false,
-    down: overrides.down ?? false,
-    left: overrides.left ?? false,
-    right: overrides.right ?? false,
-    fire: overrides.fire ?? false,
-    aimX: overrides.aimX ?? 0,
-    aimY: overrides.aimY ?? 0,
+    input: {
+      playerId,
+      seq,
+      up: overrides.up ?? false,
+      down: overrides.down ?? false,
+      left: overrides.left ?? false,
+      right: overrides.right ?? false,
+      fire: overrides.fire ?? false,
+      aimX: overrides.aimX ?? 0,
+      aimY: overrides.aimY ?? 0,
+    },
+    tick,
   }
 }
 
@@ -47,22 +51,22 @@ describe('server state', () => {
     enqueueClientInput({
       state,
       clientId: firstClient.clientId,
-      input: makeInput(firstClient.playerId, 3, { left: true }),
+      input: makeQueuedInput(firstClient.playerId, 3, 2, { left: true }),
     })
     enqueueClientInput({
       state,
       clientId: firstClient.clientId,
-      input: makeInput(firstClient.playerId, 1, { right: true }),
+      input: makeQueuedInput(firstClient.playerId, 1, 0, { right: true }),
     })
     enqueueClientInput({
       state,
       clientId: firstClient.clientId,
-      input: makeInput(firstClient.playerId, 2, { up: true }),
+      input: makeQueuedInput(firstClient.playerId, 2, 1, { up: true }),
     })
     enqueueClientInput({
       state,
       clientId: secondClient.clientId,
-      input: makeInput(secondClient.playerId, 10, { down: true }),
+      input: makeQueuedInput(secondClient.playerId, 10, 0, { down: true }),
     })
 
     const firstClientStartX = state.world.positions[firstClient.playerId].x
@@ -72,7 +76,7 @@ describe('server state', () => {
     tickServer({ state })
 
     expect(state.world.positions[firstClient.playerId].x).toBeCloseTo(
-      firstClientStartX - PLAYER_SPEED * DT
+      firstClientStartX + PLAYER_SPEED * DT
     )
     expect(state.world.positions[firstClient.playerId].y).toBeCloseTo(
       firstClientStartY
@@ -80,8 +84,28 @@ describe('server state', () => {
     expect(state.world.positions[secondClient.playerId].y).toBeCloseTo(
       secondClientStartY + PLAYER_SPEED * DT
     )
-    expect(state.clients[firstClient.clientId]?.lastAckedSeq).toBe(3)
+    expect(state.clients[firstClient.clientId]?.lastAckedSeq).toBe(1)
     expect(state.clients[secondClient.clientId]?.lastAckedSeq).toBe(10)
+
+    tickServer({ state })
+
+    expect(state.world.positions[firstClient.playerId].x).toBeCloseTo(
+      firstClientStartX + PLAYER_SPEED * DT
+    )
+    expect(state.world.positions[firstClient.playerId].y).toBeCloseTo(
+      firstClientStartY - PLAYER_SPEED * DT
+    )
+    expect(state.clients[firstClient.clientId]?.lastAckedSeq).toBe(2)
+
+    tickServer({ state })
+
+    expect(state.world.positions[firstClient.playerId].x).toBeCloseTo(
+      firstClientStartX
+    )
+    expect(state.world.positions[firstClient.playerId].y).toBeCloseTo(
+      firstClientStartY - PLAYER_SPEED * DT
+    )
+    expect(state.clients[firstClient.clientId]?.lastAckedSeq).toBe(3)
   })
 
   test('server clears input queue each tick', () => {
@@ -91,7 +115,7 @@ describe('server state', () => {
     enqueueClientInput({
       state,
       clientId: client.clientId,
-      input: makeInput(client.playerId, 1, { right: true }),
+      input: makeQueuedInput(client.playerId, 1, 0, { right: true }),
     })
 
     tickServer({ state })
@@ -106,7 +130,7 @@ describe('server state', () => {
     enqueueClientInput({
       state,
       clientId: client.clientId,
-      input: makeInput(client.playerId, 1, { right: true }),
+      input: makeQueuedInput(client.playerId, 1, 0, { right: true }),
     })
 
     const result = tickServer({ state })

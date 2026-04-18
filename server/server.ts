@@ -5,9 +5,15 @@ import { createWorld, destroyEntity, spawnPlayer } from '@shared/world.ts'
 
 import { pushSnapshotToHistory } from './history.ts'
 
+export interface QueuedClientInput {
+  input: PlayerInput
+  tick: number
+}
+
 export interface ServerClientState {
   clientId: ClientId
-  inputQueue: Array<PlayerInput>
+  inputQueue: Array<QueuedClientInput>
+  lastAppliedInput: PlayerInput | null
   lastAckedSeq: number
   playerId: number
 }
@@ -37,7 +43,7 @@ export interface DisconnectClientOptions {
 export interface EnqueueClientInputOptions {
   state: ServerState
   clientId: ClientId
-  input: PlayerInput
+  input: QueuedClientInput
 }
 
 export interface TickServerOptions {
@@ -51,29 +57,43 @@ export interface TickServerResult {
 
 const DEFAULT_HISTORY_LIMIT = 120
 
-function sortQueuedInputs(inputs: Array<PlayerInput>): Array<PlayerInput> {
+function sortQueuedInputs(
+  inputs: Array<QueuedClientInput>
+): Array<QueuedClientInput> {
   return [...inputs].sort(
-    (firstInput, secondInput) => firstInput.seq - secondInput.seq
+    (firstInput, secondInput) =>
+      firstInput.tick - secondInput.tick ||
+      firstInput.input.seq - secondInput.input.seq
   )
 }
 
 function getTickInputs(state: ServerState): Array<PlayerInput> {
   const tickInputs: Array<PlayerInput> = []
   const clientIds = Object.keys(state.clients).sort()
+  const currentServerTick = state.world.tick
 
   for (const clientId of clientIds) {
     const client = state.clients[clientId]
     const sortedQueue = sortQueuedInputs(client.inputQueue)
-    const latestInput = sortedQueue[sortedQueue.length - 1]
+    let nextQueueStartIndex = 0
 
-    if (latestInput === undefined) {
-      client.inputQueue = []
+    for (const queuedInput of sortedQueue) {
+      if (queuedInput.tick > currentServerTick) {
+        break
+      }
+
+      client.lastAppliedInput = queuedInput.input
+      client.lastAckedSeq = queuedInput.input.seq
+      nextQueueStartIndex += 1
+    }
+
+    client.inputQueue = sortedQueue.slice(nextQueueStartIndex)
+
+    if (client.lastAppliedInput === null) {
       continue
     }
 
-    tickInputs.push(latestInput)
-    client.lastAckedSeq = latestInput.seq
-    client.inputQueue = []
+    tickInputs.push(client.lastAppliedInput)
   }
 
   return tickInputs
@@ -99,6 +119,7 @@ export function connectClient({
   const client: ServerClientState = {
     clientId,
     inputQueue: [],
+    lastAppliedInput: null,
     lastAckedSeq: 0,
     playerId,
   }
